@@ -1,4 +1,5 @@
-# RDU 🦀
+# RDU - Rust Disk Usage Analyzer
+
 
 A terminal disk-usage analyzer written in Rust.
 
