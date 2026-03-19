@@ -5,7 +5,7 @@ mod ui;
 use anyhow::Result;
 use app::App;
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseButton, MouseEventKind},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -79,7 +79,32 @@ fn run_app<B: ratatui::backend::Backend>(
 
         if event::poll(timeout)? {
             let event = event::read()?;
-            if app.show_help {
+
+            // Always exit on Ctrl+C
+            if let Event::Key(key) = event {
+                if key.kind == KeyEventKind::Press
+                    && key.modifiers.contains(KeyModifiers::CONTROL)
+                    && key.code == KeyCode::Char('c')
+                {
+                    return Ok(());
+                }
+            }
+
+            if app.show_delete_confirm {
+                if let Event::Key(key) = event {
+                    if key.kind == KeyEventKind::Press {
+                        match key.code {
+                            KeyCode::Char('y') | KeyCode::Char('Y') => {
+                                app.delete_marked();
+                            }
+                            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                                app.show_delete_confirm = false;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            } else if app.show_help {
                 if matches!(event, Event::Key(_) | Event::Mouse(_)) {
                     app.show_help = false;
                 }
@@ -96,6 +121,8 @@ fn run_app<B: ratatui::backend::Backend>(
                                 KeyCode::Char('s') => app.cycle_sort_mode(),
                                 KeyCode::Char('r') => app.start_scan(),
                                 KeyCode::Char('?') => app.toggle_help(),
+                                KeyCode::Char(' ') => app.toggle_mark(),
+                                KeyCode::Char('d') | KeyCode::Char('D') => app.prompt_delete(),
                                 _ => {}
                             }
                         }

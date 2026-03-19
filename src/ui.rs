@@ -7,6 +7,7 @@ use ratatui::{
     Frame,
 };
 
+
 const ACCENT: Color = Color::Rgb(88, 166, 255);
 const DIM: Color = Color::Rgb(110, 118, 129);
 const FG: Color = Color::Rgb(201, 209, 217);
@@ -19,10 +20,25 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     // Background
     frame.render_widget(Block::default().style(Style::default().bg(BG)), area);
 
-    draw_file_panel(frame, app, area);
+    let (left_area, right_area) = if app.marked_items.is_empty() {
+        (area, None)
+    } else {
+        let chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+            .split(area);
+        (chunks[0], Some(chunks[1]))
+    };
+
+    draw_file_panel(frame, app, left_area);
+    if let Some(sidebar) = right_area {
+        draw_sidebar(frame, app, sidebar);
+    }
     draw_statusbar(frame, app, area);
 
-    if app.show_help {
+    if app.show_delete_confirm {
+        draw_delete_confirm_overlay(frame, app, area);
+    } else if app.show_help {
         draw_help_overlay(frame, area);
     }
 }
@@ -66,6 +82,7 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
     }
 
     let children = app.current_children();
+    let current_path = app.current_path_display();
     let max_size = children.iter().map(|c| c.size).max().filter(|&s| s > 0).unwrap_or(1);
 
     // Build list items
@@ -73,6 +90,14 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
         .iter()
         .enumerate()
         .map(|(i, child)| {
+            let mut item_path = current_path.clone();
+            if !item_path.ends_with('/') && !item_path.is_empty() {
+                item_path.push('/');
+            }
+            item_path.push_str(&child.name);
+
+            let is_marked = app.marked_items.contains(&item_path);
+
             let icon = if child.is_dir { "󰉋 " } else { "󰈙 " };
             let bar_width = 10usize;
             let ratio = child.size as f64 / max_size as f64;
@@ -94,8 +119,8 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
             bar.push('▏'); // Add trailing delimiter
 
             let size_str = fmt_size(child.size);
-            // Dynamic width: borders(2) + size(10) + space(1) + bar(11) + space(1) + icon(2) + highlight(2) = 29
-            let name_width = (area.width as usize).saturating_sub(29).max(10);
+            // Dynamic width: borders(2) + size(10) + space(1) + bar(11) + space(1) + icon(2) + highlight(2) + mark(2) = 31
+            let name_width = (area.width as usize).saturating_sub(31).max(10);
             let name = truncate(&child.name, name_width);
 
             let is_selected = i == app.selected;
@@ -104,6 +129,8 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
             } else {
                 "  "
             };
+
+            let mark_icon = if is_marked { "✓ " } else { "  " };
 
             let line = Line::from(vec![
                 Span::styled(
@@ -114,6 +141,10 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
                         Style::default()
                     }
                 ),
+                Span::styled(
+                    mark_icon,
+                    if is_marked { Style::default().fg(Color::Red).add_modifier(Modifier::BOLD) } else { Style::default() }
+                ),
                 Span::styled(format!("{:>10} ", size_str), Style::default().fg(DIM)),
                 Span::styled(format!("{} ", bar), Style::default().fg(Color::Rgb(56, 139, 253))),
                 Span::styled(
@@ -122,7 +153,11 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
                 ),
                 Span::styled(
                     format!("{:<width$}", name, width = name_width),
-                    Style::default().fg(FG),
+                    if is_marked {
+                        Style::default().fg(Color::Red)
+                    } else {
+                        Style::default().fg(FG)
+                    },
                 ),
             ]);
             ListItem::new(line)
@@ -139,6 +174,40 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
         );
 
     frame.render_stateful_widget(list, inner, &mut app.list_state);
+}
+
+// ── Right panel: marked items ────────────────────────────────────────────────
+
+fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
+    let inner = Rect {
+        height: area.height.saturating_sub(1),
+        ..area
+    };
+
+    let block = Block::default()
+        .title(Line::from(vec![Span::styled(
+            " Marked Items ",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        )]))
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Rgb(42, 47, 58)))
+        .style(Style::default().bg(BG));
+
+    let mut marked: Vec<&String> = app.marked_items.iter().collect();
+    marked.sort();
+
+    let items: Vec<ListItem> = marked
+        .into_iter()
+        .map(|path| {
+            ListItem::new(Line::from(vec![
+                Span::styled("✓ ", Style::default().fg(Color::Red)),
+                Span::styled(path.clone(), Style::default().fg(FG)),
+            ]))
+        })
+        .collect();
+
+    let list = List::new(items).block(block);
+    frame.render_widget(list, inner);
 }
 
 // ── Status bar ───────────────────────────────────────────────────────────────
@@ -175,7 +244,7 @@ fn draw_statusbar(frame: &mut Frame, app: &App, area: Rect) {
         ])
     };
 
-    let right = " ↑ / ↓ move  Enter drill  s sort  r rescan  ? help  q quit ";
+    let right = " Space mark  d del ↑/↓ move  Enter in  s sort  ? help  q quit ";
 
     let bar = Paragraph::new(left).style(Style::default().bg(Color::Rgb(22, 27, 34)).fg(DIM));
 
@@ -191,6 +260,48 @@ fn draw_statusbar(frame: &mut Frame, app: &App, area: Rect) {
         Paragraph::new(right).style(Style::default().fg(DIM).bg(Color::Rgb(22, 27, 34))),
         right_area,
     );
+}
+
+// ── Delete confirm overlay ───────────────────────────────────────────────────
+
+fn draw_delete_confirm_overlay(frame: &mut Frame, app: &App, area: Rect) {
+    let width = 60.min(area.width);
+    let height = 8.min(area.height);
+    let popup = Rect {
+        x: area.x + (area.width.saturating_sub(width)) / 2,
+        y: area.y + (area.height.saturating_sub(height)) / 2,
+        width,
+        height,
+    };
+    frame.render_widget(Clear, popup);
+
+    let popup_block = Block::default()
+        .title(" Confirm Deletion ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Red))
+        .style(Style::default().bg(Color::Rgb(22, 27, 34)));
+
+    let inner_area = popup_block.inner(popup);
+    frame.render_widget(popup_block, popup);
+
+    let text = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::raw("Are you sure you want to delete "),
+            Span::styled(format!("{}", app.marked_items.len()), Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::raw(" marked item(s)?"),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled("This action cannot be undone!", Style::default().fg(Color::Red))),
+        Line::from(""),
+        Line::from("Press 'y' to confirm, or 'n' / Esc to cancel."),
+    ];
+
+    let paragraph = Paragraph::new(text)
+        .alignment(Alignment::Center)
+        .wrap(Wrap { trim: false });
+
+    frame.render_widget(paragraph, inner_area);
 }
 
 // ── Help overlay ─────────────────────────────────────────────────────────────
@@ -227,6 +338,8 @@ fn draw_help_overlay(frame: &mut Frame, area: Rect) {
         key_line("k / ↑", "Move selection up"),
         key_line("Enter / →", "Drill into directory"),
         key_line("←/Esc/Bksp", "Go up to parent"),
+        key_line("Space", "Mark item for deletion"),
+        key_line("d / D", "Delete marked item(s)"),
         key_line("s", "Cycle sort mode"),
         key_line("r", "Rescan from root"),
         key_line("?", "Toggle this help"),

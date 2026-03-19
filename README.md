@@ -43,6 +43,8 @@ You can also use the following flags:
 | `k` / `↑` | Move selection up |
 | `Enter` / `→` | Drill into directory |
 | `←` / `Esc` / `Backspace` | Go up to parent |
+| `Space` | Mark item for deletion |
+| `d` / `D` | Delete marked item(s) (with prompt) |
 | `s` | Cycle sort mode |
 | `r` | Rescan from root |
 | `?` | Toggle help overlay |
@@ -62,4 +64,3 @@ src/
 ## Possible Extensions
 
 - [ ] Filter by extension (show only `.mp4`, etc.)
-- [ ] Delete selected file/dir with confirmation

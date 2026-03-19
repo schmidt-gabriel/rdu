@@ -1,5 +1,6 @@
 use crate::scanner::{DirNode, Scanner};
 use ratatui::widgets::ListState;
+use std::collections::HashSet;
 use std::sync::mpsc::{self, Receiver};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,6 +39,12 @@ pub struct App {
 
     /// Current sort mode.
     pub sort_mode: SortMode,
+
+    /// Set of paths currently marked for deletion.
+    pub marked_items: HashSet<String>,
+
+    /// Show the deletion confirmation overlay.
+    pub show_delete_confirm: bool,
 }
 
 impl App {
@@ -55,6 +62,8 @@ impl App {
             scanning: false,
             show_help: false,
             sort_mode: SortMode::SizeDesc,
+            marked_items: HashSet::new(),
+            show_delete_confirm: false,
         }
     }
 
@@ -208,5 +217,54 @@ impl App {
                 }
             }
         }
+    }
+
+    pub fn get_path_of(&self, index: usize) -> Option<String> {
+        let mut path = self.current_path_display();
+        if let Some(child) = self.current_children().get(index) {
+            if !path.ends_with('/') && !path.is_empty() {
+                path.push('/');
+            }
+            path.push_str(&child.name);
+            Some(path)
+        } else {
+            None
+        }
+    }
+
+    pub fn toggle_mark(&mut self) {
+        if let Some(path) = self.get_path_of(self.selected) {
+            if self.marked_items.contains(&path) {
+                self.marked_items.remove(&path);
+            } else {
+                self.marked_items.insert(path);
+            }
+        }
+    }
+
+    pub fn prompt_delete(&mut self) {
+        // If nothing is marked, implicitly mark the currently highlighted item
+        if self.marked_items.is_empty() {
+            if let Some(path) = self.get_path_of(self.selected) {
+                self.marked_items.insert(path);
+            }
+        }
+        if !self.marked_items.is_empty() {
+            self.show_delete_confirm = true;
+        }
+    }
+
+    pub fn delete_marked(&mut self) {
+        for path in &self.marked_items {
+            let p = std::path::Path::new(path);
+            if p.is_dir() {
+                let _ = std::fs::remove_dir_all(p);
+            } else {
+                let _ = std::fs::remove_file(p);
+            }
+        }
+        self.marked_items.clear();
+        self.show_delete_confirm = false;
+        self.start_scan();
     }
 }
