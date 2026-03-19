@@ -13,7 +13,6 @@ A terminal disk-usage analyzer written in Rust.
 **Deletion Confirmation Window**  
 ![Deletion Confirmation Window](https://github.com/user-attachments/assets/3c742946-9ee1-464c-b505-6849cf6ce8ab)
 
-
 ## Installation
 
 ### Manual Install
@@ -77,3 +76,23 @@ src/
 ## Possible Extensions
 
 - [ ] Filter by extension (show only `.mp4`, etc.)
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Built with [Ratatui](https://github.com/ratatui-org/ratatui) for the terminal interface
+- Powered by [Rayon](https://crates.io/crates/rayon) for blazingly fast parallel directory scanning
+- Uses [humansize](https://crates.io/crates/humansize) for human-readable file sizes
