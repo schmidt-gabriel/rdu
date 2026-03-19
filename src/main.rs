@@ -7,19 +7,16 @@ use app::App;
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use ratatui::{Terminal, backend::CrosstermBackend};
+use ratatui::{backend::CrosstermBackend, Terminal};
 use std::{
-    env,
-    io,
+    env, io,
     time::{Duration, Instant},
 };
 
 fn main() -> Result<()> {
-    let root_path = env::args()
-        .nth(1)
-        .unwrap_or_else(|| ".".to_string());
+    let root_path = env::args().nth(1).unwrap_or_else(|| ".".to_string());
 
     // Setup terminal
     enable_raw_mode()?;
@@ -65,15 +62,19 @@ fn run_app<B: ratatui::backend::Backend>(
         if event::poll(timeout)? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    match key.code {
-                        KeyCode::Char('q') => return Ok(()),
-                        KeyCode::Char('j') | KeyCode::Down => app.select_next(),
-                        KeyCode::Char('k') | KeyCode::Up => app.select_prev(),
-                        KeyCode::Enter | KeyCode::Right => app.enter_selected(),
-                        KeyCode::Backspace | KeyCode::Left | KeyCode::Esc => app.go_up(),
-                        KeyCode::Char('r') => app.start_scan(),
-                        KeyCode::Char('?') => app.toggle_help(),
-                        _ => {}
+                    if app.show_help {
+                        app.show_help = false;
+                    } else {
+                        match key.code {
+                            KeyCode::Char('q') => return Ok(()),
+                            KeyCode::Char('j') | KeyCode::Down => app.select_next(),
+                            KeyCode::Char('k') | KeyCode::Up => app.select_prev(),
+                            KeyCode::Enter | KeyCode::Right => app.enter_selected(),
+                            KeyCode::Backspace | KeyCode::Left | KeyCode::Esc => app.go_up(),
+                            KeyCode::Char('r') => app.start_scan(),
+                            KeyCode::Char('?') => app.toggle_help(),
+                            _ => {}
+                        }
                     }
                 }
             }

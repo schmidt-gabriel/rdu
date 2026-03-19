@@ -66,23 +66,54 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
     }
 
     let children = app.current_children();
-    let max_size = children.iter().map(|c| c.size).max().unwrap_or(1);
+    let max_size = children.first().map(|c| c.size).filter(|&s| s > 0).unwrap_or(1);
 
     // Build list items
     let items: Vec<ListItem> = children
         .iter()
-        .map(|child| {
+        .enumerate()
+        .map(|(i, child)| {
             let icon = if child.is_dir { "󰉋 " } else { "󰈙 " };
             let bar_width = 10usize;
-            let filled = ((child.size as f64 / max_size as f64) * bar_width as f64) as usize;
-            let bar: String = "█".repeat(filled) + &" ".repeat(bar_width - filled);
+            let ratio = child.size as f64 / max_size as f64;
+            
+            // Calculate total eighths of a block (10 blocks = 80 eighths max)
+            let eighths = (ratio * bar_width as f64 * 8.0).round() as usize;
+            let eighths = eighths.min(bar_width * 8);
+
+            let full_blocks = eighths / 8;
+            let fraction = eighths % 8;
+
+            let mut bar = "█".repeat(full_blocks);
+            if full_blocks < bar_width {
+                let fract_char = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"][fraction];
+                bar.push_str(fract_char);
+                let spaces = bar_width.saturating_sub(full_blocks + if fraction > 0 { 1 } else { 0 });
+                bar.push_str(&" ".repeat(spaces));
+            }
+            bar.push('▏'); // Add trailing delimiter
 
             let size_str = fmt_size(child.size);
-            // Dynamic width: borders(2) + size(10) + space(1) + bar(10) + space(1) + icon(2) + highlight(2) = 28
-            let name_width = (area.width as usize).saturating_sub(28).max(10);
+            // Dynamic width: borders(2) + size(10) + space(1) + bar(11) + space(1) + icon(2) + highlight(2) = 29
+            let name_width = (area.width as usize).saturating_sub(29).max(10);
             let name = truncate(&child.name, name_width);
 
+            let is_selected = i == app.selected;
+            let prefix = if is_selected {
+                if child.is_dir { "▶ " } else { "● " }
+            } else {
+                "  "
+            };
+
             let line = Line::from(vec![
+                Span::styled(
+                    prefix,
+                    if is_selected {
+                        Style::default().fg(Color::Rgb(121, 192, 255)).add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                    }
+                ),
                 Span::styled(format!("{:>10} ", size_str), Style::default().fg(DIM)),
                 Span::styled(format!("{} ", bar), Style::default().fg(Color::Rgb(56, 139, 253))),
                 Span::styled(
@@ -108,8 +139,7 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
                 .bg(SELECTED_BG)
                 .fg(Color::Rgb(121, 192, 255))
                 .add_modifier(Modifier::BOLD),
-        )
-        .highlight_symbol("▶ ");
+        );
 
     frame.render_stateful_widget(list, inner, &mut list_state);
 }
@@ -140,7 +170,7 @@ fn draw_statusbar(frame: &mut Frame, app: &App, area: Rect) {
         ])
     };
 
-    let right = " j/k move  Enter drill  r rescan  ? help  q quit ";
+    let right = " ↑ / ↓ move  Enter drill  r rescan  ? help  q quit ";
 
     let bar = Paragraph::new(left).style(Style::default().bg(Color::Rgb(22, 27, 34)).fg(DIM));
 
@@ -166,14 +196,14 @@ fn draw_help_overlay(frame: &mut Frame, area: Rect) {
 
     let text = vec![
         Line::from(Span::styled(
-            " dust — keyboard shortcuts ",
+            " RDU — keyboard shortcuts ",
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
         key_line("j / ↓", "Move selection down"),
         key_line("k / ↑", "Move selection up"),
         key_line("Enter / →", "Drill into directory"),
-        key_line("← / Esc / Backspace", "Go up to parent"),
+        key_line("← / Esc / Backspace", " Go up to parent"),
         key_line("r", "Rescan from root"),
         key_line("?", "Toggle this help"),
         key_line("q", "Quit"),

@@ -1,6 +1,8 @@
 use rayon::prelude::*;
+use std::collections::HashSet;
+use std::os::unix::fs::MetadataExt;
 use std::path::Path;
-use walkdir::WalkDir;
+use std::sync::{Arc, Mutex};
 
 /// A node in the directory tree.
 #[derive(Debug, Clone)]
@@ -35,32 +37,58 @@ impl Scanner {
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| root.to_string());
 
-        Self::scan_dir(name, root)
+        let root_dev = std::fs::symlink_metadata(path)
+            .map(|m| m.dev())
+            .unwrap_or(0);
+
+        let visited = Arc::new(Mutex::new(HashSet::new()));
+
+        Self::scan_dir(name, root, root_dev, visited)
     }
 
-    fn scan_dir(name: String, path: &str) -> DirNode {
-        // Collect immediate children (depth=1) using walkdir
+    fn scan_dir(
+        name: String,
+        path: &str,
+        root_dev: u64,
+        visited: Arc<Mutex<HashSet<(u64, u64)>>>,
+    ) -> DirNode {
         let mut subdirs: Vec<String> = vec![];
         let mut own_size: u64 = 0;
         let mut file_children: Vec<DirNode> = vec![];
 
-        // Only iterate one level deep for direct children
-        for entry in WalkDir::new(path)
-            .min_depth(1)
-            .max_depth(1)
-            .follow_links(false)
-            .into_iter()
-            .flatten()
-        {
-            let entry_path = entry.path().to_string_lossy().to_string();
-            let entry_name = entry.file_name().to_string_lossy().to_string();
+        if let Ok(entries) = std::fs::read_dir(path) {
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                let entry_name = entry.file_name().to_string_lossy().to_string();
 
-            if entry.file_type().is_dir() {
-                subdirs.push(entry_path);
-            } else {
-                let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
-                own_size += size;
-                file_children.push(DirNode::file(entry_name, size));
+                let Ok(meta) = std::fs::symlink_metadata(&entry_path) else { continue };
+
+                // Skip if crossing mount point
+                if meta.dev() != root_dev {
+                    continue;
+                }
+
+                if meta.is_symlink() {
+                    let size = meta.len();
+                    own_size += size;
+                    file_children.push(DirNode::file(entry_name, size));
+                } else if meta.is_dir() {
+                    subdirs.push(entry_path.to_string_lossy().to_string());
+                } else {
+                    // Use allocated blocks instead of logical length for sparse files
+                    let mut size = meta.blocks() * 512;
+
+                    // Deduplicate hard links
+                    if meta.nlink() > 1 {
+                        let mut visited_set = visited.lock().unwrap();
+                        if !visited_set.insert((meta.dev(), meta.ino())) {
+                            size = 0; // Already counted this file
+                        }
+                    }
+
+                    own_size += size;
+                    file_children.push(DirNode::file(entry_name, size));
+                }
             }
         }
 
@@ -72,7 +100,7 @@ impl Scanner {
                     .file_name()
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_else(|| subpath.clone());
-                Self::scan_dir(subname, subpath)
+            Self::scan_dir(subname, subpath, root_dev, visited.clone())
             })
             .collect();
 

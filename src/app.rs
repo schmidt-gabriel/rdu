@@ -58,11 +58,19 @@ impl App {
     /// Check if the background scan has finished; if so, store the result.
     pub fn poll_scan(&mut self) {
         if let Some(rx) = &self.scan_rx {
-            if let Ok(node) = rx.try_recv() {
+            if let Ok(mut node) = rx.try_recv() {
+                Self::sort_tree(&mut node);
                 self.tree = Some(node);
                 self.scanning = false;
                 self.scan_rx = None;
             }
+        }
+    }
+
+    fn sort_tree(node: &mut DirNode) {
+        node.children.sort_by(|a, b| b.size.cmp(&a.size));
+        for child in &mut node.children {
+            Self::sort_tree(child);
         }
     }
 
@@ -76,12 +84,13 @@ impl App {
         Some(node)
     }
 
-    /// Sorted children of the current node (largest first).
-    pub fn current_children(&self) -> Vec<&DirNode> {
-        let Some(node) = self.current_node() else { return vec![] };
-        let mut children: Vec<&DirNode> = node.children.iter().collect();
-        children.sort_by(|a, b| b.size.cmp(&a.size));
-        children
+    /// Children of the current node (already sorted largest first).
+    pub fn current_children(&self) -> &[DirNode] {
+        if let Some(node) = self.current_node() {
+            &node.children
+        } else {
+            &[]
+        }
     }
 
     pub fn select_next(&mut self) {
@@ -104,13 +113,8 @@ impl App {
         // Only enter directories
         if child.children.is_empty() { return; }
 
-        // Find the real (unsorted) index in the current node's children
-        let Some(node) = self.current_node() else { return };
-        let target_name = child.name.clone();
-        if let Some(real_idx) = node.children.iter().position(|c| c.name == target_name) {
-            self.current_node_path.push(real_idx);
-            self.selected = 0;
-        }
+        self.current_node_path.push(self.selected);
+        self.selected = 0;
     }
 
     /// Navigate to the parent directory.
@@ -127,7 +131,10 @@ impl App {
         let mut node = root;
         for &idx in &self.current_node_path {
             if let Some(child) = node.children.get(idx) {
-                path = format!("{}/{}", path, child.name);
+                if !path.ends_with('/') && !path.is_empty() {
+                    path.push('/');
+                }
+                path.push_str(&child.name);
                 node = child;
             }
         }
