@@ -129,9 +129,6 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
         })
         .collect();
 
-    let mut list_state = ListState::default();
-    list_state.select(Some(app.selected));
-
     let list = List::new(items)
         .block(block)
         .highlight_style(
@@ -141,7 +138,7 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
                 .add_modifier(Modifier::BOLD),
         );
 
-    frame.render_stateful_widget(list, inner, &mut list_state);
+    frame.render_stateful_widget(list, inner, &mut app.list_state);
 }
 
 // ── Status bar ───────────────────────────────────────────────────────────────

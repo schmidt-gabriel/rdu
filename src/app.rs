@@ -1,4 +1,5 @@
 use crate::scanner::{DirNode, Scanner};
+use ratatui::widgets::ListState;
 use std::sync::mpsc::{self, Receiver};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,6 +24,9 @@ pub struct App {
     /// Selected row in the current file list.
     pub selected: usize,
 
+    /// State of the list widget (keeps track of scroll offset).
+    pub list_state: ListState,
+
     /// Receive completed scan results from the background thread.
     scan_rx: Option<Receiver<DirNode>>,
 
@@ -38,11 +42,15 @@ pub struct App {
 
 impl App {
     pub fn new(root_path: String) -> Self {
+        let mut list_state = ListState::default();
+        list_state.select(Some(0));
+
         Self {
             root_path,
             tree: None,
             current_node_path: vec![],
             selected: 0,
+            list_state,
             scan_rx: None,
             scanning: false,
             show_help: false,
@@ -55,6 +63,7 @@ impl App {
         self.tree = None;
         self.current_node_path = vec![];
         self.selected = 0;
+        self.list_state.select(Some(0));
         self.scanning = true;
 
         let path = self.root_path.clone();
@@ -75,6 +84,7 @@ impl App {
                 self.tree = Some(node);
                 self.scanning = false;
                 self.scan_rx = None;
+                self.list_state.select(Some(self.selected));
             }
         }
     }
@@ -114,11 +124,13 @@ impl App {
         let count = self.current_children().len();
         if count == 0 { return; }
         self.selected = (self.selected + 1).min(count - 1);
+        self.list_state.select(Some(self.selected));
     }
 
     pub fn select_prev(&mut self) {
         if self.selected > 0 {
             self.selected -= 1;
+            self.list_state.select(Some(self.selected));
         }
     }
 
@@ -132,12 +144,14 @@ impl App {
 
         self.current_node_path.push(self.selected);
         self.selected = 0;
+        self.list_state.select(Some(0));
     }
 
     /// Navigate to the parent directory.
     pub fn go_up(&mut self) {
         if self.current_node_path.pop().is_some() {
             self.selected = 0;
+            self.list_state.select(Some(0));
         }
     }
 
@@ -174,5 +188,25 @@ impl App {
             self.tree = Some(root);
         }
         self.selected = 0;
+        self.list_state.select(Some(0));
+    }
+
+    pub fn handle_click(&mut self, row: u16, term_height: u16) {
+        let list_start = 1;
+        let list_end = term_height.saturating_sub(3); // Subtract bottom border and status bar
+
+        if row >= list_start && row <= list_end {
+            let offset = self.list_state.offset();
+            let clicked_index = offset + (row - list_start) as usize;
+
+            if clicked_index < self.current_children().len() {
+                if self.selected == clicked_index {
+                    self.enter_selected(); // Double-click equivalent to drill down
+                } else {
+                    self.selected = clicked_index;
+                    self.list_state.select(Some(self.selected));
+                }
+            }
+        }
     }
 }

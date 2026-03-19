@@ -5,7 +5,7 @@ mod ui;
 use anyhow::Result;
 use app::App;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEventKind},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseButton, MouseEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -39,7 +39,7 @@ fn main() -> Result<()> {
     // Setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
@@ -47,7 +47,7 @@ fn main() -> Result<()> {
 
     // Restore terminal
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
     terminal.show_cursor()?;
 
     if let Err(e) = res {
@@ -78,23 +78,38 @@ fn run_app<B: ratatui::backend::Backend>(
         let timeout = tick_rate.saturating_sub(last_tick.elapsed());
 
         if event::poll(timeout)? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    if app.show_help {
-                        app.show_help = false;
-                    } else {
-                        match key.code {
-                            KeyCode::Char('q') => return Ok(()),
-                            KeyCode::Char('j') | KeyCode::Down => app.select_next(),
-                            KeyCode::Char('k') | KeyCode::Up => app.select_prev(),
-                            KeyCode::Enter | KeyCode::Right => app.enter_selected(),
-                            KeyCode::Backspace | KeyCode::Left | KeyCode::Esc => app.go_up(),
-                            KeyCode::Char('s') => app.cycle_sort_mode(),
-                            KeyCode::Char('r') => app.start_scan(),
-                            KeyCode::Char('?') => app.toggle_help(),
-                            _ => {}
+            let event = event::read()?;
+            if app.show_help {
+                if matches!(event, Event::Key(_) | Event::Mouse(_)) {
+                    app.show_help = false;
+                }
+            } else {
+                match event {
+                    Event::Key(key) => {
+                        if key.kind == KeyEventKind::Press {
+                            match key.code {
+                                KeyCode::Char('q') => return Ok(()),
+                                KeyCode::Char('j') | KeyCode::Down => app.select_next(),
+                                KeyCode::Char('k') | KeyCode::Up => app.select_prev(),
+                                KeyCode::Enter | KeyCode::Right => app.enter_selected(),
+                                KeyCode::Backspace | KeyCode::Left | KeyCode::Esc => app.go_up(),
+                                KeyCode::Char('s') => app.cycle_sort_mode(),
+                                KeyCode::Char('r') => app.start_scan(),
+                                KeyCode::Char('?') => app.toggle_help(),
+                                _ => {}
+                            }
                         }
                     }
+                    Event::Mouse(mouse) => match mouse.kind {
+                        MouseEventKind::ScrollDown => app.select_next(),
+                        MouseEventKind::ScrollUp => app.select_prev(),
+                        MouseEventKind::Down(MouseButton::Left) => {
+                            let size = terminal.size()?;
+                            app.handle_click(mouse.row, size.height);
+                        }
+                        _ => {}
+                    },
+                    _ => {}
                 }
             }
         }

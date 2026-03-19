@@ -61,6 +61,5 @@ src/
 
 ## Possible Extensions
 
-- [ ] Mouse support (click arc to drill down)
 - [ ] Filter by extension (show only `.mp4`, etc.)
 - [ ] Delete selected file/dir with confirmation
