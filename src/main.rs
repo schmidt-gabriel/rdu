@@ -16,7 +16,25 @@ use std::{
 };
 
 fn main() -> Result<()> {
-    let root_path = env::args().nth(1).unwrap_or_else(|| ".".to_string());
+    let arg = env::args().nth(1);
+
+    if let Some(a) = &arg {
+        if a == "--version" || a == "-V" {
+            println!("rdu {}", env!("CARGO_PKG_VERSION"));
+            return Ok(());
+        } else if a == "--help" || a == "-h" {
+            println!("rdu - Rust Disk Usage\n");
+            println!("Usage: rdu [PATH]\n");
+            println!("Arguments:");
+            println!("  PATH             Directory to scan (defaults to \".\")\n");
+            println!("Options:");
+            println!("  -h, --help       Print help");
+            println!("  -V, --version    Print version");
+            return Ok(());
+        }
+    }
+
+    let root_path = arg.unwrap_or_else(|| ".".to_string());
 
     // Setup terminal
     enable_raw_mode()?;

@@ -16,7 +16,24 @@ A terminal disk-usage analyzer written in Rust.
 2. Open Terminal and run `brew tap schmidt-gabriel/tap`
 3. Run `brew install rdu`
 
+
 Requires Rust 1.75+. Install via https://rustup.rs if needed.
+
+## Usage
+
+Run `rdu` to scan the current directory, or provide a path to scan a specific directory:
+
+```bash
+# Scan current directory
+rdu
+
+# Scan a specific directory
+rdu /path/to/directory
+```
+
+You can also use the following flags:
+- `-h`, `--help`: Print help information
+- `-V`, `--version`: Print version information
 
 ## Keybindings
 
@@ -45,8 +62,5 @@ src/
 ## Possible Extensions
 
 - [ ] Mouse support (click arc to drill down)
-- [ ] Export to SVG
 - [ ] Filter by extension (show only `.mp4`, etc.)
 - [ ] Delete selected file/dir with confirmation
-- [x] Sort modes (by size, name, items count)
-- [ ] Config file (`~/.config/rdu/config.toml`)
