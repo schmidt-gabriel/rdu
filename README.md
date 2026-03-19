@@ -70,7 +70,7 @@ You can also use the following flags:
 src/
 ├── main.rs       — Entry point, terminal setup, event loop
 ├── app.rs        — Application state (tree, navigation, scan channel)
-├── scanner.rs    — Recursive filesystem walker (walkdir + rayon)
+├── scanner.rs    — Recursive filesystem walker (std::fs + rayon)
 └── ui.rs         — All ratatui widget rendering
 ```
 

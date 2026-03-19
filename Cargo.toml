@@ -1,6 +1,6 @@
 [package]
 name = "rdu"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "RDU - Rust Disk Usage"
 authors = ["Gabriel"]
@@ -13,9 +13,6 @@ path = "src/main.rs"
 # TUI framework
 ratatui = "0.26"
 crossterm = "0.27"
-
-# Filesystem traversal
-walkdir = "2"
 
 # Human-readable sizes
 humansize = "2"
