@@ -1,0 +1,32 @@
+[package]
+name = "rdu"
+version = "0.1.0"
+edition = "2021"
+description = "RDU - Rust Disk Usage"
+authors = ["Gabriel"]
+
+[[bin]]
+name = "rdu"
+path = "src/main.rs"
+
+[dependencies]
+# TUI framework
+ratatui = "0.26"
+crossterm = "0.27"
+
+# Filesystem traversal
+walkdir = "2"
+
+# Human-readable sizes
+humansize = "2"
+
+# Async / threading
+rayon = "1"
+
+# Error handling
+anyhow = "1"
+
+[profile.release]
+opt-level = 3
+strip = true
+lto = true
