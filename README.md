@@ -5,13 +5,13 @@ A terminal disk-usage analyzer written in Rust.
 ## Screenshots
 
 **Main Window**  
-<img width="800" alt="Main Window" src="https://github.com/user-attachments/assets/ab5cbc2a-2955-4859-92d7-57d0e69f6c43" />
+![Main Window](https://github.com/user-attachments/assets/ab5cbc2a-2955-4859-92d7-57d0e69f6c43)
 
 **Help Window**  
-<img width="800" alt="Help Window" src="https://github.com/user-attachments/assets/d3ffb8a4-2914-411d-9bee-90c00160cbe1" />
+![Help Window](https://github.com/user-attachments/assets/d3ffb8a4-2914-411d-9bee-90c00160cbe1)
 
 **Deletion Confirmation Window**  
-<img width="800" alt="Deletion Confirmation Window" src="https://github.com/user-attachments/assets/3c742946-9ee1-464c-b505-6849cf6ce8ab" />
+![Deletion Confirmation Window](https://github.com/user-attachments/assets/3c742946-9ee1-464c-b505-6849cf6ce8ab)
 
 
 ## Installation
