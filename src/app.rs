@@ -1,6 +1,14 @@
 use crate::scanner::{DirNode, Scanner};
 use std::sync::mpsc::{self, Receiver};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SortMode {
+    SizeDesc,
+    SizeAsc,
+    NameAsc,
+    NameDesc,
+}
+
 /// The complete application state.
 pub struct App {
     /// The path we were invoked with.
@@ -23,6 +31,9 @@ pub struct App {
 
     /// Show the help overlay.
     pub show_help: bool,
+
+    /// Current sort mode.
+    pub sort_mode: SortMode,
 }
 
 impl App {
@@ -35,6 +46,7 @@ impl App {
             scan_rx: None,
             scanning: false,
             show_help: false,
+            sort_mode: SortMode::SizeDesc,
         }
     }
 
@@ -59,7 +71,7 @@ impl App {
     pub fn poll_scan(&mut self) {
         if let Some(rx) = &self.scan_rx {
             if let Ok(mut node) = rx.try_recv() {
-                Self::sort_tree(&mut node);
+                Self::sort_tree(&mut node, self.sort_mode);
                 self.tree = Some(node);
                 self.scanning = false;
                 self.scan_rx = None;
@@ -67,10 +79,15 @@ impl App {
         }
     }
 
-    fn sort_tree(node: &mut DirNode) {
-        node.children.sort_by(|a, b| b.size.cmp(&a.size));
+    fn sort_tree(node: &mut DirNode, mode: SortMode) {
+        match mode {
+            SortMode::SizeDesc => node.children.sort_by(|a, b| b.size.cmp(&a.size)),
+            SortMode::SizeAsc => node.children.sort_by(|a, b| a.size.cmp(&b.size)),
+            SortMode::NameAsc => node.children.sort_by(|a, b| a.name.cmp(&b.name)),
+            SortMode::NameDesc => node.children.sort_by(|a, b| b.name.cmp(&a.name)),
+        }
         for child in &mut node.children {
-            Self::sort_tree(child);
+            Self::sort_tree(child, mode);
         }
     }
 
@@ -84,7 +101,7 @@ impl App {
         Some(node)
     }
 
-    /// Children of the current node (already sorted largest first).
+    /// Children of the current node (already sorted by current sort_mode).
     pub fn current_children(&self) -> &[DirNode] {
         if let Some(node) = self.current_node() {
             &node.children
@@ -143,5 +160,19 @@ impl App {
 
     pub fn toggle_help(&mut self) {
         self.show_help = !self.show_help;
+    }
+
+    pub fn cycle_sort_mode(&mut self) {
+        self.sort_mode = match self.sort_mode {
+            SortMode::SizeDesc => SortMode::SizeAsc,
+            SortMode::SizeAsc => SortMode::NameAsc,
+            SortMode::NameAsc => SortMode::NameDesc,
+            SortMode::NameDesc => SortMode::SizeDesc,
+        };
+        if let Some(mut root) = self.tree.take() {
+            Self::sort_tree(&mut root, self.sort_mode);
+            self.tree = Some(root);
+        }
+        self.selected = 0;
     }
 }

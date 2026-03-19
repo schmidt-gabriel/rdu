@@ -1,6 +1,6 @@
 use crate::{app::App, scanner::fmt_size};
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap},
@@ -66,7 +66,7 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
     }
 
     let children = app.current_children();
-    let max_size = children.first().map(|c| c.size).filter(|&s| s > 0).unwrap_or(1);
+    let max_size = children.iter().map(|c| c.size).max().filter(|&s| s > 0).unwrap_or(1);
 
     // Build list items
     let items: Vec<ListItem> = children
@@ -166,11 +166,19 @@ fn draw_statusbar(frame: &mut Frame, app: &App, area: Rect) {
             Span::styled("  Items: ", Style::default().fg(DIM)),
             Span::styled(total_items.to_string(), Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled("  Sorting by: ", Style::default().fg(DIM)),
-            Span::styled("size desc", Style::default().fg(ACCENT)),
+            Span::styled(
+                match app.sort_mode {
+                    crate::app::SortMode::SizeDesc => "size desc",
+                    crate::app::SortMode::SizeAsc => "size asc",
+                    crate::app::SortMode::NameAsc => "name asc",
+                    crate::app::SortMode::NameDesc => "name desc",
+                },
+                Style::default().fg(ACCENT),
+            ),
         ])
     };
 
-    let right = " ↑ / ↓ move  Enter drill  r rescan  ? help  q quit ";
+    let right = " ↑ / ↓ move  Enter drill  s sort  r rescan  ? help  q quit ";
 
     let bar = Paragraph::new(left).style(Style::default().bg(Color::Rgb(22, 27, 34)).fg(DIM));
 
@@ -191,39 +199,64 @@ fn draw_statusbar(frame: &mut Frame, app: &App, area: Rect) {
 // ── Help overlay ─────────────────────────────────────────────────────────────
 
 fn draw_help_overlay(frame: &mut Frame, area: Rect) {
-    let popup = centered_rect(50, 60, area);
+    let popup = centered_rect(70, 60, area);
     frame.render_widget(Clear, popup);
-
-    let text = vec![
-        Line::from(Span::styled(
-            " RDU — keyboard shortcuts ",
-            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
-        )),
-        Line::from(""),
-        key_line("j / ↓", "Move selection down"),
-        key_line("k / ↑", "Move selection up"),
-        key_line("Enter / →", "Drill into directory"),
-        key_line("← / Esc / Backspace", " Go up to parent"),
-        key_line("r", "Rescan from root"),
-        key_line("?", "Toggle this help"),
-        key_line("q", "Quit"),
-        Line::from(""),
-        Line::from(Span::styled(
-            " Press any key to close ",
-            Style::default().fg(DIM),
-        )),
-    ];
 
     let popup_block = Block::default()
         .borders(Borders::ALL)
         .border_style(Style::default().fg(ACCENT))
         .style(Style::default().bg(Color::Rgb(22, 27, 34)));
 
-    let p = Paragraph::new(text)
-        .block(popup_block)
-        .wrap(Wrap { trim: false });
+    let inner_area = popup_block.inner(popup);
+    frame.render_widget(popup_block, popup);
 
-    frame.render_widget(p, popup);
+    let vertical_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .split(inner_area);
+
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .split(vertical_chunks[0]);
+
+    let left_text: Vec<Line<'_>> = vec![
+        Line::from(Span::styled(
+            " Keyboard Shortcuts ",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        key_line("j / ↓", "Move selection down"),
+        key_line("k / ↑", "Move selection up"),
+        key_line("Enter / →", "Drill into directory"),
+        key_line("←/Esc/Bksp", "Go up to parent"),
+        key_line("s", "Cycle sort mode"),
+        key_line("r", "Rescan from root"),
+        key_line("?", "Toggle this help"),
+        key_line("q", "Quit"),
+    ];
+
+    let right_text: Vec<Line<'_>> = vec![
+        Line::from(Span::styled(
+            " Sorting Modes (Cycle with 's') ",
+            Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        key_line("Size Desc", "Largest first (default)"),
+        key_line("Size Asc", "Smallest first"),
+        key_line("Name Asc", "Alphabetical A-Z"),
+        key_line("Name Desc", "Alphabetical Z-A"),
+    ];
+
+    frame.render_widget(Paragraph::new(left_text).wrap(Wrap { trim: false }), chunks[0]);
+    frame.render_widget(Paragraph::new(right_text).wrap(Wrap { trim: false }), chunks[1]);
+
+    let footer = Paragraph::new(Line::from(Span::styled(
+        "Press any key to close",
+        Style::default().fg(DIM),
+    )))
+    .alignment(Alignment::Center);
+    frame.render_widget(footer, vertical_chunks[1]);
 }
 
 fn key_line(key: &str, desc: &str) -> Line<'static> {

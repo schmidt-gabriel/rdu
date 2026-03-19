@@ -71,6 +71,7 @@ fn run_app<B: ratatui::backend::Backend>(
                             KeyCode::Char('k') | KeyCode::Up => app.select_prev(),
                             KeyCode::Enter | KeyCode::Right => app.enter_selected(),
                             KeyCode::Backspace | KeyCode::Left | KeyCode::Esc => app.go_up(),
+                            KeyCode::Char('s') => app.cycle_sort_mode(),
                             KeyCode::Char('r') => app.start_scan(),
                             KeyCode::Char('?') => app.toggle_help(),
                             _ => {}

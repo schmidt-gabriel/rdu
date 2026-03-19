@@ -3,19 +3,18 @@
 A terminal disk-usage analyzer written in Rust.
 
 
-## Build & Run
+## Installation
 
-```bash
-# Clone / navigate
-cd rdu
+### Manual Install
+1. Go to the GitHub [releases](https://github.com/schmidt-gabriel/rdu/releases/latest) page
+2. Download the latest non-dSYM build (i.e., `rdu-X.Y.Z.tar.gz` for Linux/macOS or `rdu-X.Y.Z.zip` for Windows)
+3. Unzip the archive
+4. Run the `rdu` binary from the terminal
 
-# Debug build (faster compile)
-cargo run
-
-# Release build (faster runtime)
-cargo build --release
-
-```
+### Install via Homebrew :beer:
+1. Install [Homebrew](https://brew.sh) if you haven't already
+2. Open Terminal and run `brew tap schmidt-gabriel/tap`
+3. Run `brew install rdu`
 
 Requires Rust 1.75+. Install via https://rustup.rs if needed.
 
@@ -27,6 +26,7 @@ Requires Rust 1.75+. Install via https://rustup.rs if needed.
 | `k` / `↑` | Move selection up |
 | `Enter` / `→` | Drill into directory |
 | `←` / `Esc` / `Backspace` | Go up to parent |
+| `s` | Cycle sort mode |
 | `r` | Rescan from root |
 | `?` | Toggle help overlay |
 | `q` | Quit |
@@ -48,5 +48,5 @@ src/
 - [ ] Export to SVG
 - [ ] Filter by extension (show only `.mp4`, etc.)
 - [ ] Delete selected file/dir with confirmation
-- [ ] Sort modes (by name, by count, by modified date)
+- [x] Sort modes (by size, name, items count)
 - [ ] Config file (`~/.config/rdu/config.toml`)
