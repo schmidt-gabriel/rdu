@@ -34,6 +34,7 @@ rdu /path/to/directory
 You can also use the following flags:
 - `-h`, `--help`: Print help information
 - `-V`, `--version`: Print version information
+- `--no-delete`: Prevent deletions
 
 ## Keybindings
 

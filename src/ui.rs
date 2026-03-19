@@ -39,7 +39,7 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     if app.show_delete_confirm {
         draw_delete_confirm_overlay(frame, app, area);
     } else if app.show_help {
-        draw_help_overlay(frame, area);
+        draw_help_overlay(frame, app, area);
     }
 }
 
@@ -244,7 +244,11 @@ fn draw_statusbar(frame: &mut Frame, app: &App, area: Rect) {
         ])
     };
 
-    let right = " Space mark  d del ↑/↓ move  Enter in  s sort  ? help  q quit ";
+    let right = if app.no_delete {
+        " ↑/↓ move  Enter in  s sort  ? help  q quit "
+    } else {
+        " Space mark  d del ↑/↓ move  Enter in  s sort  ? help  q quit "
+    };
 
     let bar = Paragraph::new(left).style(Style::default().bg(Color::Rgb(22, 27, 34)).fg(DIM));
 
@@ -306,7 +310,7 @@ fn draw_delete_confirm_overlay(frame: &mut Frame, app: &App, area: Rect) {
 
 // ── Help overlay ─────────────────────────────────────────────────────────────
 
-fn draw_help_overlay(frame: &mut Frame, area: Rect) {
+fn draw_help_overlay(frame: &mut Frame, app: &App, area: Rect) {
     let popup = centered_rect(70, 60, area);
     frame.render_widget(Clear, popup);
 
@@ -328,7 +332,7 @@ fn draw_help_overlay(frame: &mut Frame, area: Rect) {
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(vertical_chunks[0]);
 
-    let left_text: Vec<Line<'_>> = vec![
+    let mut left_text: Vec<Line<'_>> = vec![
         Line::from(Span::styled(
             " Keyboard Shortcuts ",
             Style::default().fg(ACCENT).add_modifier(Modifier::BOLD),
@@ -338,13 +342,19 @@ fn draw_help_overlay(frame: &mut Frame, area: Rect) {
         key_line("k / ↑", "Move selection up"),
         key_line("Enter / →", "Drill into directory"),
         key_line("←/Esc/Bksp", "Go up to parent"),
-        key_line("Space", "Mark item for deletion"),
-        key_line("d / D", "Delete marked item(s)"),
+    ];
+
+    if !app.no_delete {
+        left_text.push(key_line("Space", "Mark item for deletion"));
+        left_text.push(key_line("d / D", "Delete marked item(s)"));
+    }
+
+    left_text.extend(vec![
         key_line("s", "Cycle sort mode"),
         key_line("r", "Rescan from root"),
         key_line("?", "Toggle this help"),
         key_line("q", "Quit"),
-    ];
+    ]);
 
     let right_text: Vec<Line<'_>> = vec![
         Line::from(Span::styled(

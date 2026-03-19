@@ -45,10 +45,13 @@ pub struct App {
 
     /// Show the deletion confirmation overlay.
     pub show_delete_confirm: bool,
+
+    /// Whether deletions are disabled.
+    pub no_delete: bool,
 }
 
 impl App {
-    pub fn new(root_path: String) -> Self {
+    pub fn new(root_path: String, no_delete: bool) -> Self {
         let mut list_state = ListState::default();
         list_state.select(Some(0));
 
@@ -64,6 +67,7 @@ impl App {
             sort_mode: SortMode::SizeDesc,
             marked_items: HashSet::new(),
             show_delete_confirm: false,
+            no_delete,
         }
     }
 
@@ -233,6 +237,10 @@ impl App {
     }
 
     pub fn toggle_mark(&mut self) {
+        if self.no_delete {
+            return;
+        }
+
         if let Some(path) = self.get_path_of(self.selected) {
             if self.marked_items.contains(&path) {
                 self.marked_items.remove(&path);
@@ -243,6 +251,10 @@ impl App {
     }
 
     pub fn prompt_delete(&mut self) {
+        if self.no_delete {
+            return;
+        }
+
         // If nothing is marked, implicitly mark the currently highlighted item
         if self.marked_items.is_empty() {
             if let Some(path) = self.get_path_of(self.selected) {

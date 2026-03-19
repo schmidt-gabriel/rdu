@@ -16,25 +16,31 @@ use std::{
 };
 
 fn main() -> Result<()> {
-    let arg = env::args().nth(1);
+    let mut root_path = None;
+    let mut no_delete = false;
 
-    if let Some(a) = &arg {
-        if a == "--version" || a == "-V" {
+    for arg in env::args().skip(1) {
+        if arg == "--version" || arg == "-V" {
             println!("rdu {}", env!("CARGO_PKG_VERSION"));
             return Ok(());
-        } else if a == "--help" || a == "-h" {
+        } else if arg == "--help" || arg == "-h" {
             println!("rdu - Rust Disk Usage\n");
-            println!("Usage: rdu [PATH]\n");
+            println!("Usage: rdu [OPTIONS] [PATH]\n");
             println!("Arguments:");
             println!("  PATH             Directory to scan (defaults to \".\")\n");
             println!("Options:");
             println!("  -h, --help       Print help");
             println!("  -V, --version    Print version");
+            println!("  --no-delete      Prevent deletions");
             return Ok(());
+        } else if arg == "--no-delete" {
+            no_delete = true;
+        } else if !arg.starts_with('-') && root_path.is_none() {
+            root_path = Some(arg);
         }
     }
 
-    let root_path = arg.unwrap_or_else(|| ".".to_string());
+    let root_path = root_path.unwrap_or_else(|| ".".to_string());
 
     // Setup terminal
     enable_raw_mode()?;
@@ -43,7 +49,7 @@ fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let res = run_app(&mut terminal, root_path);
+    let res = run_app(&mut terminal, root_path, no_delete);
 
     // Restore terminal
     disable_raw_mode()?;
@@ -60,8 +66,9 @@ fn main() -> Result<()> {
 fn run_app<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     root_path: String,
+    no_delete: bool,
 ) -> Result<()> {
-    let mut app = App::new(root_path);
+    let mut app = App::new(root_path, no_delete);
 
     // Kick off background scan immediately
     app.start_scan();
