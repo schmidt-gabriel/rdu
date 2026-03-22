@@ -18,7 +18,7 @@ A terminal disk-usage analyzer written in Rust.
 ### Manual Install
 
 1. Go to the GitHub [releases](https://github.com/schmidt-gabriel/rdu/releases/latest) page
-2. Download the latest non-dSYM build (i.e., `rdu-X.Y.Z.tar.gz` for Linux/macOS or `rdu-X.Y.Z.zip` for Windows)
+2. Download the latest non-dSYM build (i.e., `rdu-X.Y.Z.tar.gz` for Linux/macOS)
 3. Unzip the archive
 4. Run the `rdu` binary from the terminal
 
