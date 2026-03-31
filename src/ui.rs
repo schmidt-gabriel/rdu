@@ -96,7 +96,7 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
             }
             item_path.push_str(&child.name);
 
-            let is_marked = app.marked_items.contains(&item_path);
+            let is_marked = app.marked_items.contains_key(&item_path);
 
             let icon = if child.is_dir { "󰉋 " } else { "󰈙 " };
             let bar_width = 10usize;
@@ -104,7 +104,7 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
             
             // Calculate total eighths of a block (10 blocks = 80 eighths max)
             let eighths = (ratio * bar_width as f64 * 8.0).round() as usize;
-            let eighths = eighths.min(bar_width * 8);
+            let eighths = eighths.min(bar_width * 8); 
 
             let full_blocks = eighths / 8;
             let fraction = eighths % 8;
@@ -119,8 +119,8 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
             bar.push('▏'); // Add trailing delimiter
 
             let size_str = fmt_size(child.size);
-            // Dynamic width: borders(2) + size(10) + space(1) + bar(11) + space(1) + icon(2) + highlight(2) + mark(2) = 31
-            let name_width = (area.width as usize).saturating_sub(31).max(10);
+            // Dynamic width: borders(2) + size(10) + space(1) + bar(11) + space(1) + icon(2) + highlight(2) + mark(2) = 32
+            let name_width = (area.width as usize).saturating_sub(32).max(10);
             let name = truncate(&child.name, name_width);
 
             let is_selected = i == app.selected;
@@ -193,7 +193,7 @@ fn draw_sidebar(frame: &mut Frame, app: &App, area: Rect) {
         .border_style(Style::default().fg(Color::Rgb(42, 47, 58)))
         .style(Style::default().bg(BG));
 
-    let mut marked: Vec<&String> = app.marked_items.iter().collect();
+    let mut marked: Vec<&String> = app.marked_items.keys().collect();
     marked.sort();
 
     let items: Vec<ListItem> = marked
@@ -226,11 +226,27 @@ fn draw_statusbar(frame: &mut Frame, app: &App, area: Rect) {
             .map(|t| (fmt_size(t.size), t.items))
             .unwrap_or_else(|| (String::from("0 B"), 0));
 
-        Line::from(vec![
+        let mut spans = vec![
             Span::styled(" Total disk usage: ", Style::default().fg(DIM)),
             Span::styled(total_size, Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
             Span::styled("  Items: ", Style::default().fg(DIM)),
             Span::styled(total_items.to_string(), Style::default().fg(ACCENT).add_modifier(Modifier::BOLD)),
+        ];
+
+        if !app.marked_items.is_empty() {
+            spans.extend(vec![
+                Span::styled("  Marked: ", Style::default().fg(DIM)),
+                Span::styled(
+                    fmt_size(app.marked_size()),
+                    Style::default()
+                        .fg(Color::Red)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Span::styled(format!(" ({})", app.marked_items.len()), Style::default().fg(DIM)),
+            ]);
+        }
+
+        spans.extend(vec![
             Span::styled("  Sorting by: ", Style::default().fg(DIM)),
             Span::styled(
                 match app.sort_mode {
@@ -241,7 +257,9 @@ fn draw_statusbar(frame: &mut Frame, app: &App, area: Rect) {
                 },
                 Style::default().fg(ACCENT),
             ),
-        ])
+        ]);
+
+        Line::from(spans)
     };
 
     let right = if app.no_delete {

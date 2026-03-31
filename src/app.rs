@@ -1,6 +1,6 @@
 use crate::scanner::{DirNode, Scanner};
 use ratatui::widgets::ListState;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::sync::mpsc::{self, Receiver};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,7 +41,7 @@ pub struct App {
     pub sort_mode: SortMode,
 
     /// Set of paths currently marked for deletion.
-    pub marked_items: HashSet<String>,
+    pub marked_items: HashMap<String, u64>, // path -> size
 
     /// Show the deletion confirmation overlay.
     pub show_delete_confirm: bool,
@@ -65,7 +65,7 @@ impl App {
             scanning: false,
             show_help: false,
             sort_mode: SortMode::SizeDesc,
-            marked_items: HashSet::new(),
+            marked_items: HashMap::new(),
             show_delete_confirm: false,
             no_delete,
         }
@@ -242,10 +242,10 @@ impl App {
         }
 
         if let Some(path) = self.get_path_of(self.selected) {
-            if self.marked_items.contains(&path) {
+            if self.marked_items.contains_key(&path) {
                 self.marked_items.remove(&path);
-            } else {
-                self.marked_items.insert(path);
+            } else if let Some(child) = self.current_children().get(self.selected) {
+                self.marked_items.insert(path, child.size);
             }
         }
     }
@@ -258,7 +258,9 @@ impl App {
         // If nothing is marked, implicitly mark the currently highlighted item
         if self.marked_items.is_empty() {
             if let Some(path) = self.get_path_of(self.selected) {
-                self.marked_items.insert(path);
+                if let Some(child) = self.current_children().get(self.selected) {
+                    self.marked_items.insert(path, child.size);
+                }
             }
         }
         if !self.marked_items.is_empty() {
@@ -267,7 +269,7 @@ impl App {
     }
 
     pub fn delete_marked(&mut self) {
-        for path in &self.marked_items {
+        for path in self.marked_items.keys() {
             let p = std::path::Path::new(path);
             if p.is_dir() {
                 let _ = std::fs::remove_dir_all(p);
@@ -278,5 +280,10 @@ impl App {
         self.marked_items.clear();
         self.show_delete_confirm = false;
         self.start_scan();
+    }
+
+    /// Total size of all marked items.
+    pub fn marked_size(&self) -> u64 {
+        self.marked_items.values().sum()
     }
 }
