@@ -115,16 +115,63 @@ fn run_app<B: ratatui::backend::Backend>(
                 if matches!(event, Event::Key(_) | Event::Mouse(_)) {
                     app.show_help = false;
                 }
+            } else if app.is_searching {
+                if let Event::Key(key) = event {
+                    if key.kind == KeyEventKind::Press {
+                        match key.code {
+                            KeyCode::Esc => {
+                                app.is_searching = false;
+                                app.search_query.clear();
+                                app.search_results.clear();
+                                app.selected = 0;
+                                app.list_state.select(Some(0));
+                            }
+                            KeyCode::Enter => {
+                                app.is_searching = false;
+                            }
+                            KeyCode::Backspace => {
+                                app.search_query.pop();
+                                app.perform_search();
+                            }
+                            KeyCode::Char(c) => {
+                                app.search_query.push(c);
+                                app.perform_search();
+                            }
+                            _ => {}
+                        }
+                    }
+                }
             } else {
                 match event {
                     Event::Key(key) => {
                         if key.kind == KeyEventKind::Press {
                             match key.code {
                                 KeyCode::Char('q') => return Ok(()),
+                                KeyCode::Char('/') => {
+                                    app.is_searching = true;
+                                    app.search_query.clear();
+                                    app.search_results.clear();
+                                    app.selected = 0;
+                                    app.list_state.select(Some(0));
+                                }
+                                KeyCode::Esc => {
+                                    if !app.search_query.is_empty() {
+                                        app.search_query.clear();
+                                        app.search_results.clear();
+                                        app.selected = 0;
+                                        app.list_state.select(Some(0));
+                                    } else {
+                                        app.go_up();
+                                    }
+                                }
                                 KeyCode::Char('j') | KeyCode::Down => app.select_next(),
                                 KeyCode::Char('k') | KeyCode::Up => app.select_prev(),
                                 KeyCode::Enter | KeyCode::Right => app.enter_selected(),
-                                KeyCode::Backspace | KeyCode::Left | KeyCode::Esc => app.go_up(),
+                                KeyCode::Backspace | KeyCode::Left => {
+                                    if app.search_query.is_empty() {
+                                        app.go_up();
+                                    }
+                                },
                                 KeyCode::Char('s') => app.cycle_sort_mode(),
                                 KeyCode::Char('r') => app.start_scan(),
                                 KeyCode::Char('?') => app.toggle_help(),

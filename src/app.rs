@@ -48,6 +48,15 @@ pub struct App {
 
     /// Whether deletions are disabled.
     pub no_delete: bool,
+
+    /// Is the search input currently active?
+    pub is_searching: bool,
+
+    /// Current search query.
+    pub search_query: String,
+
+    /// Paths (indices) of nodes matching the search query.
+    pub search_results: Vec<Vec<usize>>,
 }
 
 impl App {
@@ -68,6 +77,9 @@ impl App {
             marked_items: HashMap::new(),
             show_delete_confirm: false,
             no_delete,
+            is_searching: false,
+            search_query: String::new(),
+            search_results: Vec::new(),
         }
     }
 
@@ -97,7 +109,11 @@ impl App {
                 self.tree = Some(node);
                 self.scanning = false;
                 self.scan_rx = None;
-                self.list_state.select(Some(self.selected));
+                if !self.search_query.is_empty() {
+                    self.perform_search();
+                } else {
+                    self.list_state.select(Some(self.selected));
+                }
             }
         }
     }
@@ -133,8 +149,57 @@ impl App {
         }
     }
 
+    /// Total items in the currently active view.
+    pub fn current_item_count(&self) -> usize {
+        if !self.search_query.is_empty() {
+            self.search_results.len()
+        } else {
+            self.current_children().len()
+        }
+    }
+
+    /// Get a node given its full path indices.
+    pub fn get_node(&self, path: &[usize]) -> Option<&DirNode> {
+        let mut node = self.tree.as_ref()?;
+        for &idx in path {
+            node = node.children.get(idx)?;
+        }
+        Some(node)
+    }
+
+    /// Retrieve the fully resolved string path for an index sequence.
+    pub fn get_path_display(&self, path: &[usize]) -> String {
+        let Some(root) = self.tree.as_ref() else { return self.root_path.clone() };
+        let mut s = root.name.clone();
+        let mut node = root;
+        for &idx in path {
+            if let Some(child) = node.children.get(idx) {
+                if !s.ends_with('/') && !s.is_empty() {
+                    s.push('/');
+                }
+                s.push_str(&child.name);
+                node = child;
+            } else {
+                break;
+            }
+        }
+        s
+    }
+
+    /// Returns a reference to the currently selected node in the active view.
+    pub fn get_selected_node(&self) -> Option<&DirNode> {
+        if !self.search_query.is_empty() {
+            if let Some(path) = self.search_results.get(self.selected) {
+                return self.get_node(path);
+            }
+        } else {
+            return self.current_children().get(self.selected);
+        }
+        None
+    }
+
     pub fn select_next(&mut self) {
-        let count = self.current_children().len();
+        let count = self.current_item_count();
         if count == 0 { return; }
         self.selected = (self.selected + 1).min(count - 1);
         self.list_state.select(Some(self.selected));
@@ -149,6 +214,24 @@ impl App {
 
     /// Drill into the selected directory.
     pub fn enter_selected(&mut self) {
+        if !self.search_query.is_empty() {
+            if let Some(path) = self.search_results.get(self.selected) {
+                if let Some(node) = self.get_node(path) {
+                    let mut new_path = path.clone();
+                    if !node.is_dir {
+                        new_path.pop(); // Go to parent directory if it's a file
+                    }
+                    self.current_node_path = new_path;
+                    self.search_query.clear();
+                    self.search_results.clear();
+                    self.is_searching = false;
+                    self.selected = 0;
+                    self.list_state.select(Some(0));
+                }
+            }
+            return;
+        }
+
         let children = self.current_children();
         let Some(child) = children.get(self.selected) else { return };
 
@@ -200,8 +283,12 @@ impl App {
             Self::sort_tree(&mut root, self.sort_mode);
             self.tree = Some(root);
         }
-        self.selected = 0;
-        self.list_state.select(Some(0));
+        if !self.search_query.is_empty() {
+            self.perform_search();
+        } else {
+            self.selected = 0;
+            self.list_state.select(Some(0));
+        }
     }
 
     pub fn handle_click(&mut self, row: u16, term_height: u16) {
@@ -212,7 +299,7 @@ impl App {
             let offset = self.list_state.offset();
             let clicked_index = offset + (row - list_start) as usize;
 
-            if clicked_index < self.current_children().len() {
+            if clicked_index < self.current_item_count() {
                 if self.selected == clicked_index {
                     self.enter_selected(); // Double-click equivalent to drill down
                 } else {
@@ -224,6 +311,11 @@ impl App {
     }
 
     pub fn get_path_of(&self, index: usize) -> Option<String> {
+        if !self.search_query.is_empty() {
+            let path = self.search_results.get(index)?;
+            return Some(self.get_path_display(path));
+        }
+
         let mut path = self.current_path_display();
         if let Some(child) = self.current_children().get(index) {
             if !path.ends_with('/') && !path.is_empty() {
@@ -244,8 +336,8 @@ impl App {
         if let Some(path) = self.get_path_of(self.selected) {
             if self.marked_items.contains_key(&path) {
                 self.marked_items.remove(&path);
-            } else if let Some(child) = self.current_children().get(self.selected) {
-                self.marked_items.insert(path, child.size);
+            } else if let Some(node) = self.get_selected_node() {
+                self.marked_items.insert(path, node.size);
             }
         }
     }
@@ -258,8 +350,8 @@ impl App {
         // If nothing is marked, implicitly mark the currently highlighted item
         if self.marked_items.is_empty() {
             if let Some(path) = self.get_path_of(self.selected) {
-                if let Some(child) = self.current_children().get(self.selected) {
-                    self.marked_items.insert(path, child.size);
+                if let Some(node) = self.get_selected_node() {
+                    self.marked_items.insert(path, node.size);
                 }
             }
         }
@@ -285,5 +377,36 @@ impl App {
     /// Total size of all marked items.
     pub fn marked_size(&self) -> u64 {
         self.marked_items.values().sum()
+    }
+
+    pub fn perform_search(&mut self) {
+        self.search_results.clear();
+        let query = self.search_query.to_lowercase();
+        if query.is_empty() {
+            return;
+        }
+        if let Some(root) = &self.tree {
+            let mut results = Vec::new();
+            Self::search_tree_recursive(root, &query, &mut Vec::new(), &mut results);
+            self.search_results = results;
+        }
+        self.selected = 0;
+        self.list_state.select(Some(0));
+    }
+
+    fn search_tree_recursive(
+        node: &DirNode,
+        query: &str,
+        current_path: &mut Vec<usize>,
+        results: &mut Vec<Vec<usize>>,
+    ) {
+        for (i, child) in node.children.iter().enumerate() {
+            current_path.push(i);
+            if child.name.to_lowercase().contains(query) {
+                results.push(current_path.clone());
+            }
+            Self::search_tree_recursive(child, query, current_path, results);
+            current_path.pop();
+        }
     }
 }

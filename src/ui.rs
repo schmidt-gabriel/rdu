@@ -53,10 +53,14 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
     };
 
     let max_title_len = (area.width as usize).saturating_sub(8).max(34);
+    let is_search = !app.search_query.is_empty();
     let title = if app.scanning {
         " 󰑓 Scanning… ".to_string()
+    } else if app.is_searching || is_search {
+        let cursor = if app.is_searching { "█" } else { "" };
+        format!(" 󰍉 Search: {}{} ", app.search_query, cursor)
     } else {
-        format!(" 󰉋 {} ", short_path(&app.current_path_display(), max_title_len))
+        format!("  {} ", short_path(&app.current_path_display(), max_title_len))
     };
 
     let block = Block::default()
@@ -83,86 +87,115 @@ fn draw_file_panel(frame: &mut Frame, app: &mut App, area: Rect) {
 
     let children = app.current_children();
     let current_path = app.current_path_display();
-    let max_size = children.iter().map(|c| c.size).max().filter(|&s| s > 0).unwrap_or(1);
+    let max_size = if is_search {
+        app.search_results
+            .iter()
+            .filter_map(|p| app.get_node(p))
+            .map(|c| c.size)
+            .max()
+            .filter(|&s| s > 0)
+            .unwrap_or(1)
+    } else {
+        children.iter().map(|c| c.size).max().filter(|&s| s > 0).unwrap_or(1)
+    };
 
-    // Build list items
-    let items: Vec<ListItem> = children
-        .iter()
-        .enumerate()
-        .map(|(i, child)| {
-            let mut item_path = current_path.clone();
-            if !item_path.ends_with('/') && !item_path.is_empty() {
-                item_path.push('/');
-            }
-            item_path.push_str(&child.name);
+    let build_list_item = |i: usize, child: &crate::scanner::DirNode, item_path: &str, display_name: &str| -> ListItem {
+        let is_marked = app.marked_items.contains_key(item_path);
 
-            let is_marked = app.marked_items.contains_key(&item_path);
+        let icon = if child.is_dir { "󰉋 " } else { "󰈙 " };
+        let bar_width = 10usize;
+        let ratio = child.size as f64 / max_size as f64;
+        
+        // Calculate total eighths of a block (10 blocks = 80 eighths max)
+        let eighths = (ratio * bar_width as f64 * 8.0).round() as usize;
+        let eighths = eighths.min(bar_width * 8); 
 
-            let icon = if child.is_dir { "󰉋 " } else { "󰈙 " };
-            let bar_width = 10usize;
-            let ratio = child.size as f64 / max_size as f64;
-            
-            // Calculate total eighths of a block (10 blocks = 80 eighths max)
-            let eighths = (ratio * bar_width as f64 * 8.0).round() as usize;
-            let eighths = eighths.min(bar_width * 8); 
+        let full_blocks = eighths / 8;
+        let fraction = eighths % 8;
 
-            let full_blocks = eighths / 8;
-            let fraction = eighths % 8;
+        let mut bar = "█".repeat(full_blocks);
+        if full_blocks < bar_width {
+            let fract_char = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"][fraction];
+            bar.push_str(fract_char);
+            let spaces = bar_width.saturating_sub(full_blocks + if fraction > 0 { 1 } else { 0 });
+            bar.push_str(&" ".repeat(spaces));
+        }
+        bar.push('▏'); // Add trailing delimiter
 
-            let mut bar = "█".repeat(full_blocks);
-            if full_blocks < bar_width {
-                let fract_char = ["", "▏", "▎", "▍", "▌", "▋", "▊", "▉"][fraction];
-                bar.push_str(fract_char);
-                let spaces = bar_width.saturating_sub(full_blocks + if fraction > 0 { 1 } else { 0 });
-                bar.push_str(&" ".repeat(spaces));
-            }
-            bar.push('▏'); // Add trailing delimiter
+        let size_str = fmt_size(child.size);
+        // Dynamic width: borders(2) + size(10) + space(1) + bar(11) + space(1) + icon(2) + highlight(2) + mark(2) = 32
+        let name_width = (area.width as usize).saturating_sub(32).max(10);
+        
+        let name = if is_search {
+            short_path(display_name, name_width)
+        } else {
+            truncate(display_name, name_width)
+        };
 
-            let size_str = fmt_size(child.size);
-            // Dynamic width: borders(2) + size(10) + space(1) + bar(11) + space(1) + icon(2) + highlight(2) + mark(2) = 32
-            let name_width = (area.width as usize).saturating_sub(32).max(10);
-            let name = truncate(&child.name, name_width);
+        let is_selected = i == app.selected;
+        let prefix = if is_selected {
+            if child.is_dir { "▶ " } else { "● " }
+        } else {
+            "  "
+        };
 
-            let is_selected = i == app.selected;
-            let prefix = if is_selected {
-                if child.is_dir { "▶ " } else { "● " }
-            } else {
-                "  "
-            };
+        let mark_icon = if is_marked { "✓ " } else { "  " };
 
-            let mark_icon = if is_marked { "✓ " } else { "  " };
+        let line = Line::from(vec![
+            Span::styled(
+                prefix,
+                if is_selected {
+                    Style::default().fg(Color::Rgb(121, 192, 255)).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                }
+            ),
+            Span::styled(
+                mark_icon,
+                if is_marked { Style::default().fg(Color::Red).add_modifier(Modifier::BOLD) } else { Style::default() }
+            ),
+            Span::styled(format!("{:>10} ", size_str), Style::default().fg(DIM)),
+            Span::styled(format!("{} ", bar), Style::default().fg(Color::Rgb(56, 139, 253))),
+            Span::styled(
+                icon,
+                Style::default().fg(if child.is_dir { ACCENT } else { DIM }),
+            ),
+            Span::styled(
+                format!("{:<width$}", name, width = name_width),
+                if is_marked {
+                    Style::default().fg(Color::Red)
+                } else {
+                    Style::default().fg(FG)
+                },
+            ),
+        ]);
+        ListItem::new(line)
+    };
 
-            let line = Line::from(vec![
-                Span::styled(
-                    prefix,
-                    if is_selected {
-                        Style::default().fg(Color::Rgb(121, 192, 255)).add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default()
-                    }
-                ),
-                Span::styled(
-                    mark_icon,
-                    if is_marked { Style::default().fg(Color::Red).add_modifier(Modifier::BOLD) } else { Style::default() }
-                ),
-                Span::styled(format!("{:>10} ", size_str), Style::default().fg(DIM)),
-                Span::styled(format!("{} ", bar), Style::default().fg(Color::Rgb(56, 139, 253))),
-                Span::styled(
-                    icon,
-                    Style::default().fg(if child.is_dir { ACCENT } else { DIM }),
-                ),
-                Span::styled(
-                    format!("{:<width$}", name, width = name_width),
-                    if is_marked {
-                        Style::default().fg(Color::Red)
-                    } else {
-                        Style::default().fg(FG)
-                    },
-                ),
-            ]);
-            ListItem::new(line)
-        })
-        .collect();
+    let items: Vec<ListItem> = if is_search {
+        app.search_results
+            .iter()
+            .enumerate()
+            .filter_map(|(i, path)| {
+                let child = app.get_node(path)?;
+                let item_path = app.get_path_display(path);
+                Some(build_list_item(i, child, &item_path, &item_path))
+            })
+            .collect()
+    } else {
+        children
+            .iter()
+            .enumerate()
+            .map(|(i, child)| {
+                let mut item_path = current_path.clone();
+                if !item_path.ends_with('/') && !item_path.is_empty() {
+                    item_path.push('/');
+                }
+                item_path.push_str(&child.name);
+                build_list_item(i, child, &item_path, &child.name)
+            })
+            .collect()
+    };
 
     let list = List::new(items)
         .block(block)
@@ -221,6 +254,8 @@ fn draw_statusbar(frame: &mut Frame, app: &App, area: Rect) {
 
     let left = if app.scanning {
         Line::from(vec![Span::styled(" ● SCANNING ", Style::default().fg(Color::Yellow))])
+    } else if app.is_searching {
+        Line::from(vec![Span::styled(" ● SEARCHING ", Style::default().fg(Color::Yellow))])
     } else {
         let (total_size, total_items) = app.current_node()
             .map(|t| (fmt_size(t.size), t.items))
@@ -263,9 +298,9 @@ fn draw_statusbar(frame: &mut Frame, app: &App, area: Rect) {
     };
 
     let right = if app.no_delete {
-        " ↑/↓ move  Enter in  s sort  ? help  q quit "
+        " / search  ↑/↓ move  Enter in  s sort  ? help  q quit "
     } else {
-        " Space mark  d del ↑/↓ move  Enter in  s sort  ? help  q quit "
+        " / search  Space mark  d del ↑/↓ move  Enter in  s sort  ? help  q quit "
     };
 
     let bar = Paragraph::new(left).style(Style::default().bg(Color::Rgb(22, 27, 34)).fg(DIM));
@@ -368,6 +403,7 @@ fn draw_help_overlay(frame: &mut Frame, app: &App, area: Rect) {
     }
 
     left_text.extend(vec![
+        key_line("/", "Search / filter files"),
         key_line("s", "Cycle sort mode"),
         key_line("r", "Rescan from root"),
         key_line("?", "Toggle this help"),
