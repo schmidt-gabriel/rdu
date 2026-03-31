@@ -37,7 +37,8 @@ Use the following keybindings to navigate the application:
 | `j` or `↓` | Move selection down |
 | `k` or `↑` | Move selection up |
 | `Enter` or `→` | Drill into the selected directory |
-| `←`, `Esc`, or `Backspace` | Go up to the parent directory |
+| `←`, `Esc`, or `Backspace` | Go up to the parent directory (or clear search) |
+| `/` | Search / filter files |
 | `r` | Rescan the directory from the root |
 | `?` | Toggle the help overlay |
 | `q` | Quit the application |

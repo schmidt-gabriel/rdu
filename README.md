@@ -55,9 +55,10 @@ You can also use the following flags:
 | `j` / `↓` | Move selection down |
 | `k` / `↑` | Move selection up |
 | `Enter` / `→` | Drill into directory |
-| `←` / `Esc` / `Backspace` | Go up to parent |
+| `←` / `Esc` / `Backspace` | Go up to parent / clear search |
 | `Space` | Mark item for deletion |
 | `d` / `D` | Delete marked item(s) (with prompt) |
+| `/` | Search / filter files |
 | `s` | Cycle sort mode |
 | `r` | Rescan from root |
 | `?` | Toggle help overlay |
@@ -75,7 +76,7 @@ src/
 
 ## Possible Extensions
 
-- [ ] Filter by extension (show only `.mp4`, etc.)
+- [x] Filter by extension (show only `.mp4`, etc.)
 
 ## Contributing
 
